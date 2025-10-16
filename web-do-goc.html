@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Đo Góc từ Ảnh (Drag points & Pan/Zoom)</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg,#667eea,#764ba2);
+      min-height:100vh;padding:20px;display:flex;flex-direction:column;align-items:center;
+    }
+    .container{max-width:800px;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+    .header{background:linear-gradient(135deg,#4facfe,#00f2fe);color:#fff;padding:16px;text-align:center}
+    .content{padding:16px}
+    .upload-section{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+    label.button{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:10px 16px;border-radius:20px;cursor:pointer}
+    .reset-btn{background:linear-gradient(135deg,#f093fb,#f5576c);color:#fff;border:none;padding:10px 12px;border-radius:12px;cursor:pointer;display:none}
+    .canvas-container{width:100%;height:420px;background:#111;border-radius:8px;overflow:hidden;display:none;position:relative;cursor:grab}
+    .canvas-container:active{cursor:grabbing}
+    canvas{display:block;width:100%;height:100%}
+    .controls{display:flex;gap:8px;justify-content:center;margin-top:12px;display:none}
+    .undo-btn,.clear-btn{padding:8px 14px;border-radius:12px;border:none;cursor:pointer;background:linear-gradient(135deg,#ffa751,#ffe259)}
+    .clear-btn{background:linear-gradient(135deg,#ff6b6b,#ee5a6f);color:#fff}
+    .point-indicator{display:none;text-align:center;margin-top:8px;background:#fff3e0;padding:8px;border-radius:8px;color:#e65100;font-weight:600}
+    .result{display:none;text-align:center;margin-top:12px;background:linear-gradient(135deg,#f093fb,#f5576c);color:#fff;padding:12px;border-radius:8px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>📐 Đo Góc từ Ảnh</h2>
+      <div style="opacity:.9">Tải ảnh, zoom/pan, chấm 3 điểm, kéo điểm để chỉnh</div>
+    </div>
+
+    <div class="content">
+      <div class="upload-section">
+        <input id="cameraInput" type="file" accept="image/*" capture="environment" style="display:none">
+        <input id="imageInput" type="file" accept="image/*" style="display:none">
+        <label for="cameraInput" class="button">📷 Chụp Ảnh</label>
+        <label for="imageInput" class="button">🖼️ Tải Ảnh</label>
+        <button id="resetBtn" class="reset-btn">🔄 Chọn Ảnh Khác</button>
+      </div>
+
+      <div class="canvas-container" id="canvasContainer">
+        <canvas id="canvas"></canvas>
+      </div>
+
+      <div class="point-indicator" id="pointIndicator">Đã chọn: <span id="pointCount">0</span>/3 điểm</div>
+
+      <div class="controls" id="controlButtons">
+        <button class="undo-btn" id="undoBtn">↶ Xóa Điểm Cuối</button>
+        <button class="clear-btn" id="clearBtn">✕ Xóa Tất Cả</button>
+      </div>
+
+      <div class="result" id="result">
+        <div>Góc đo được:</div>
+        <div style="font-size:28px;font-weight:700" id="angleValue">0°</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // Elements
+  const cameraInput = document.getElementById('cameraInput');
+  const imageInput = document.getElementById('imageInput');
+  const canvas = document.getElementById('canvas');
+  const canvasContainer = document.getElementById('canvasContainer');
+  const ctx = canvas.getContext('2d');
+  const resetBtn = document.getElementById('resetBtn');
+  const pointIndicator = document.getElementById('pointIndicator');
+  const pointCount = document.getElementById('pointCount');
+  const controlButtons = document.getElementById('controlButtons');
+  const undoBtn = document.getElementById('undoBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const resultBox = document.getElementById('result');
+  const angleValue = document.getElementById('angleValue');
+
+  // State
+  let img = null;
+  let points = []; // stored in image-space coordinates {x,y}
+  let scale = 1;
+  const zoomStep = 0.12;
+  let offsetX = 0; // translation in canvas pixels
+  let offsetY = 0;
+  let draggingPointIndex = -1; // index of point being dragged (-1 none)
+  let isPanning = false;       // true when dragging image (pan)
+  let pointerDown = false;
+  let pointerMoved = false;
+  let lastPointerX = 0;
+  let lastPointerY = 0;
+  const HIT_RADIUS = 12; // px threshold in display (canvas pixel) space
+
+  // Helpers: resize canvas to fill container (logical pixels)
+  function fitCanvasToContainer() {
+    const rect = canvasContainer.getBoundingClientRect();
+    // set css size handled by CSS (width:100%;height:100%), but set internal resolution
+    // We'll set canvas.width/height to the container displayed pixel size for accurate mapping
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.round(rect.width * dpr);
+    const h = Math.round(rect.height * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+      ctx.setTransform(1,0,0,1,0,0); // reset transform
+      drawImage();
+    }
+  }
+
+  // Setup canvas and initial transform so image is centered and scaled to fit
+  function setupCanvasAndTransform() {
+    // ensure container visible
+    canvasContainer.style.display = 'block';
+    fitCanvasToContainer();
+
+    // compute scale so image fits inside container (contain)
+    const rect = canvas.getBoundingClientRect();
+    const displayW = rect.width;
+    const displayH = rect.height;
+
+    const scaleX = displayW / img.width;
+    const scaleY = displayH / img.height;
+    scale = Math.min(scaleX, scaleY, 1); // avoid upscaling beyond 1 (optional)
+
+    // compute target displayed size (CSS px)
+    const targetDisplayW = img.width * scale;
+    const targetDisplayH = img.height * scale;
+
+    // compute offsets so image centered in display area (in display CSS px)
+    const displayOffsetX = (displayW - targetDisplayW) / 2;
+    const displayOffsetY = (displayH - targetDisplayH) / 2;
+
+    // But canvas internal pixels may be scaled by devicePixelRatio
+    const dpr = window.devicePixelRatio || 1;
+    offsetX = displayOffsetX * dpr;
+    offsetY = displayOffsetY * dpr;
+
+    drawImage();
+  }
+
+  // Draw image and points. We operate in canvas pixel space (canvas.width/canvas.height)
+  function drawImage() {
+    if (!img) {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      return;
+    }
+    // clear
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // apply transform: scale (device) = scale * dpr, translation offsetX/Y already in canvas pixels
+    ctx.save();
+    ctx.setTransform(scale * (window.devicePixelRatio||1), 0, 0, scale * (window.devicePixelRatio||1), offsetX, offsetY);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+
+    // draw points on top (use canvas pixel coordinates)
+    ctx.save();
+    // points are stored in image-space. We'll compute display positions in canvas pixels:
+    const dpr = window.devicePixelRatio || 1;
+    points.forEach((p, i) => {
+      const px = p.x * scale * dpr + offsetX;
+      const py = p.y * scale * dpr + offsetY;
+      const radius = Math.max(6, HIT_RADIUS/ (scale * dpr));
+      // circle
+      ctx.beginPath();
+      ctx.arc(px, py, Math.max(6, 8), 0, Math.PI*2);
+      ctx.fillStyle = (i===1)?'#f5576c':'#4facfe';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+      // label
+      ctx.fillStyle = '#fff';
+      ctx.font = `${14}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(i+1), px, py);
+    });
+    // draw connecting lines
+    if (points.length >= 2) {
+      ctx.beginPath();
+      ctx.moveTo(points[0].x*scale*dpr + offsetX, points[0].y*scale*dpr + offsetY);
+      ctx.lineTo(points[1].x*scale*dpr + offsetX, points[1].y*scale*dpr + offsetY);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    if (points.length === 3) {
+      ctx.beginPath();
+      ctx.moveTo(points[1].x*scale*dpr + offsetX, points[1].y*scale*dpr + offsetY);
+      ctx.lineTo(points[2].x*scale*dpr + offsetX, points[2].y*scale*dpr + offsetY);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Map pointer event to image-space coordinates (x,y)
+  function getPointerImageCoords(evt) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = evt.clientX;
+    const clientY = evt.clientY;
+    const displayX = clientX - rect.left;
+    const displayY = clientY - rect.top;
+    const dpr = window.devicePixelRatio || 1;
+    // convert display px to canvas pixels
+    const canvasX = displayX * dpr;
+    const canvasY = displayY * dpr;
+    // convert canvas pixels to image-space
+    const imgX = (canvasX - offsetX) / (scale * dpr);
+    const imgY = (canvasY - offsetY) / (scale * dpr);
+    return { imgX, imgY, canvasX, canvasY };
+  }
+
+  // find if pointer is over an existing point; returns index or -1
+  function hitTestPoint(evt) {
+    if (!points.length) return -1;
+    const { canvasX, canvasY } = getPointerImageCoords(evt);
+    // compute distance to each point in canvas pixels
+    for (let i=0;i<points.length;i++){
+      const p = points[i];
+      const px = p.x * scale * (window.devicePixelRatio||1) + offsetX;
+      const py = p.y * scale * (window.devicePixelRatio||1) + offsetY;
+      const dx = canvasX - px;
+      const dy = canvasY - py;
+      if (Math.hypot(dx,dy) <= HIT_RADIUS) return i;
+    }
+    return -1;
+  }
+
+  // calculate angle given three points (image-space)
+  function calculateAngle() {
+    if (points.length < 3) return 0;
+    const p1 = points[0], p2 = points[1], p3 = points[2];
+    const a1 = Math.atan2(p1.y - p2.y, p1.x - p2.x);
+    const a2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+    let angle = Math.abs(a1 - a2) * (180/Math.PI);
+    if (angle > 180) angle = 360 - angle;
+    return Math.round(angle*10)/10;
+  }
+
+  // UI updates
+  function updateUIOnImageLoad() {
+    canvasContainer.style.display = 'block';
+    resetBtn.style.display = 'inline-block';
+    pointIndicator.style.display = 'block';
+    controlButtons.style.display = 'flex';
+    resultBox.style.display = 'none';
+    points = [];
+    pointCount.textContent = '0';
+  }
+
+  // Events
+  function onImageFileSelected(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('File không phải ảnh'); return; }
+    const url = URL.createObjectURL(file);
+    const tmp = new Image();
+    tmp.onload = function(){
+      img = tmp;
+      // show container before measuring
+      canvasContainer.style.display = 'block';
+      setupCanvasAndTransform();
+      updateUIOnImageLoad();
+      drawImage();
+    };
+    tmp.onerror = function(){ alert('Không thể load ảnh này'); };
+    tmp.src = url;
+  }
+
+  // pointer handlers (use pointer events for single unified handling)
+  canvas.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    pointerDown = true;
+    pointerMoved = false;
+    lastPointerX = ev.clientX;
+    lastPointerY = ev.clientY;
+
+    const hitIdx = hitTestPoint(ev);
+    if (hitIdx !== -1) {
+      draggingPointIndex = hitIdx;
+      isPanning = false;
+    } else {
+      draggingPointIndex = -1;
+      isPanning = true;
+    }
+    // capture pointer to receive pointerup/move outside canvas
+    canvas.setPointerCapture(ev.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', (ev) => {
+    // update cursor on hover if not dragging
+    const hitIdx = hitTestPoint(ev);
+    if (!pointerDown) {
+      canvas.style.cursor = (hitIdx !== -1) ? 'grab' : 'default';
+    }
+
+    if (!pointerDown) return;
+
+    // detect movement
+    const moveDist = Math.hypot(ev.clientX - lastPointerX, ev.clientY - lastPointerY);
+    if (moveDist > 2) pointerMoved = true;
+
+    if (draggingPointIndex !== -1) {
+      // move the dragged point (image-space coords)
+      const { imgX, imgY } = getPointerImageCoords(ev);
+      // clamp to image bounds if desired:
+      points[draggingPointIndex].x = Math.max(0, Math.min(img.width, imgX));
+      points[draggingPointIndex].y = Math.max(0, Math.min(img.height, imgY));
+      drawImage();
+      // update angle live
+      if (points.length === 3) {
+        angleValue.textContent = calculateAngle() + '°';
+        resultBox.style.display = 'block';
+      }
+      lastPointerX = ev.clientX;
+      lastPointerY = ev.clientY;
+      return;
+    }
+
+    if (isPanning) {
+      // pan image: update offset in canvas pixels
+      const dpr = window.devicePixelRatio || 1;
+      offsetX += (ev.clientX - lastPointerX) * dpr;
+      offsetY += (ev.clientY - lastPointerY) * dpr;
+      lastPointerX = ev.clientX;
+      lastPointerY = ev.clientY;
+      drawImage();
+    }
+  });
+
+  canvas.addEventListener('pointerup', (ev) => {
+    pointerDown = false;
+    canvas.releasePointerCapture(ev.pointerId);
+    // if pointer didn't move much and user clicked on empty space -> add point
+    const hitIdx = hitTestPoint(ev);
+    if (!pointerMoved && hitIdx === -1) {
+      const { imgX, imgY } = getPointerImageCoords(ev);
+      if (points.length < 3) {
+        points.push({ x: Math.max(0, Math.min(img.width, imgX)), y: Math.max(0, Math.min(img.height, imgY)) });
+        pointCount.textContent = String(points.length);
+        drawImage();
+        if (points.length === 3) {
+          angleValue.textContent = calculateAngle() + '°';
+          resultBox.style.display = 'block';
+        }
+      }
+    }
+    // end drag
+    draggingPointIndex = -1;
+    isPanning = false;
+  });
+
+  // prevent context menu on long press
+  canvas.addEventListener('contextmenu', (e)=> e.preventDefault());
+
+  // wheel to zoom (zoom around pointer)
+  canvas.addEventListener('wheel', (ev) => {
+    if (!img) return;
+    ev.preventDefault();
+    const { canvasX, canvasY } = getPointerImageCoords(ev); // canvas pixel coords
+    const prevScale = scale;
+    if (ev.deltaY < 0) {
+      scale *= (1 + zoomStep);
+    } else {
+      scale = Math.max(0.05, scale * (1 - zoomStep));
+    }
+    // adjust offset so pointer stays in place
+    const dpr = window.devicePixelRatio || 1;
+    // formula based on canvas pixel coordinates:
+    offsetX = canvasX - (canvasX - offsetX) * (scale/prevScale);
+    offsetY = canvasY - (canvasY - offsetY) * (scale/prevScale);
+    drawImage();
+  }, { passive:false });
+
+  // Undo / Clear
+  undoBtn.addEventListener('click', ()=>{
+    if (points.length>0) points.pop();
+    pointCount.textContent = String(points.length);
+    drawImage();
+    if (points.length < 3) resultBox.style.display = 'none';
+  });
+  clearBtn.addEventListener('click', ()=>{
+    points = [];
+    pointCount.textContent = '0';
+    drawImage();
+    resultBox.style.display = 'none';
+  });
+
+  // Reset (choose another image)
+  resetBtn.addEventListener('click', ()=>{
+    img = null;
+    points = [];
+    canvasContainer.style.display = 'none';
+    controlButtons.style.display = 'none';
+    resetBtn.style.display = 'none';
+    pointIndicator.style.display = 'none';
+    resultBox.style.display = 'none';
+    imageInput.value = '';
+    cameraInput.value = '';
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+  });
+
+  // On window resize, re-fit and redraw (preserve scale and offsets reasonably)
+  window.addEventListener('resize', ()=>{
+    if (!img) return;
+    // recompute canvas size and adjust (we keep current scale but need to recompute offsets appropriately)
+    fitCanvasToContainer();
+    drawImage();
+  });
+
+  // file inputs
+  imageInput.addEventListener('change', onImageFileSelected);
+  cameraInput.addEventListener('change', onImageFileSelected);
+
+  // initial: nothing loaded
+  </script>
+</body>
+</html>
