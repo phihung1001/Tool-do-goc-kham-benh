@@ -162,22 +162,23 @@
     points.forEach((p, i) => {
       const px = p.x * scale * dpr + offsetX;
       const py = p.y * scale * dpr + offsetY;
-      const radius = Math.max(6, HIT_RADIUS/ (scale * dpr));
+       const radius = 20; 
       // circle
       ctx.beginPath();
-      ctx.arc(px, py, Math.max(6, 8), 0, Math.PI*2);
+      ctx.arc(px, py, radius, 0, Math.PI*2);
       ctx.fillStyle = (i===1)?'#f5576c':'#4facfe';
       ctx.fill();
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.strokeStyle = '#fff';
       ctx.stroke();
       // label
       ctx.fillStyle = '#fff';
-      ctx.font = `${14}px Arial`;
+      ctx.font = `${20}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(i+1), px, py);
     });
+
     // draw connecting lines
     if (points.length >= 2) {
       ctx.beginPath();
