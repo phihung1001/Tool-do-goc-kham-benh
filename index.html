@@ -559,7 +559,7 @@
       isPanning = false;
     } else {
       draggingPointIndex = -1;
-      isPanning = true;
+      isPanning = !isMobile
     }
     canvas.setPointerCapture(ev.pointerId);
   });
@@ -589,7 +589,7 @@
       return;
     }
 
-    if (isPanning) {
+    if (isPanning && !isMobile) {
       const dpr = window.devicePixelRatio || 1;
       offsetX += (ev.clientX - lastPointerX) * dpr;
       offsetY += (ev.clientY - lastPointerY) * dpr;
