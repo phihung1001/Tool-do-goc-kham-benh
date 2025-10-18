@@ -2,6 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Đo Góc Y Tế - Medical Angle Measurement</title>
   <style>
@@ -362,6 +363,9 @@
   let lastPointerY = 0;
   const HIT_RADIUS = 20;
 
+  const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+
+
   function fitCanvasToContainer() {
     const rect = canvasContainer.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
@@ -612,9 +616,13 @@
   });
 
   canvas.addEventListener('contextmenu', (e)=> e.preventDefault());
-
+  
   canvas.addEventListener('wheel', (ev) => {
     if (!img) return;
+    if (isMobile) {
+      ev.preventDefault();
+      return;
+    }
     ev.preventDefault();
     const { canvasX, canvasY } = getPointerImageCoords(ev);
     const prevScale = scale;
