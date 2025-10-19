@@ -32,10 +32,11 @@
       align-items:center;
       gap:12px;
     }
-    .header-icon{
-      font-size:32px;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,.2));
-    }
+    .header-icon img {
+  height: 60px;   /* bạn có thể tăng giảm tùy ý */
+  width: auto;
+  display: block;
+}
     .header-text h1{
       font-size:22px;
       font-weight:600;
@@ -256,83 +257,177 @@
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <div class="header-icon">📐</div>
-      <div class="header-text">
-      <h1>ROMeta</h1>
-        <p>Công cụ hỗ trợ đánh giá biên độ vận động khớp dựa trên hình ảnh chụp tư thế khớp</p>
-      </div>
+<div class="container">
+  <!-- 🧭 Header -->
+  <div class="header">
+    <div class="header-icon">
+          <img src="assets/logo.png" alt="ROMeta Logo">
+    </div>
+    <div class="header-text">
+      <h1 data-i18n="title">ROMeta</h1>
+      <p data-i18n="subtitle">
+        Công cụ hỗ trợ đánh giá biên độ vận động khớp dựa trên hình ảnh chụp tư thế khớp
+      </p>
     </div>
 
-    <div class="content">
-      <div class="section">
-        <div class="section-title">📤 Tải Ảnh Lên</div>
-        <div class="upload-section">
-          <input id="cameraInput" type="file" accept="image/*" capture="environment" style="display:none">
-          <input id="imageInput" type="file" accept="image/*" style="display:none">
-          <label for="cameraInput" class="button primary">
-            <span>📷</span>
-            <span>Chụp Ảnh</span>
-          </label>
-          <label for="imageInput" class="button primary">
-            <span>🖼️</span>
-            <span>Chọn Từ Thư Viện</span>
-          </label>
-          <button id="resetBtn" class="reset-btn">🔄 Chọn Ảnh Khác</button>
-        </div>
-      </div>
-
-      <div class="instructions">
-        <div class="instructions-title">
-          <span>💡</span>
-          <span>Hướng Dẫn Sử Dụng</span>
-        </div>
-        <ul>
-          <li><strong>Chọn ảnh:</strong> Chụp mới hoặc tải ảnh từ thư viện</li>
-          <li><strong>Zoom/Pan:</strong> Lăn chuột để phóng to/thu nhỏ, kéo ảnh để di chuyển</li>
-          <li><strong>Đánh dấu điểm:</strong> Nhấp/chạm để đặt 3 điểm (điểm 2 là đỉnh góc)</li>
-          <li><strong>Điều chỉnh:</strong> Kéo thả các điểm để chỉnh vị trí chính xác</li>
-          <li><strong>Kết quả:</strong> Góc sẽ hiển thị tự động sau khi đặt đủ 3 điểm</li>
-        </ul>
-      </div>
-
-      <div class="canvas-wrapper" id="canvasWrapper">
-        <div class="section-title">🔍 Khu Vực Đo Lường</div>
-        <div class="canvas-container" id="canvasContainer">
-          <canvas id="canvas"></canvas>
-        </div>
-        <div class="zoom-hint">💡 Lăn chuột để zoom, kéo để di chuyển ảnh</div>
-        
-        <div class="toolbar">
-          <button id="undoBtn">↶ Xóa Điểm Cuối</button>
-          <button id="clearBtn">✕ Xóa Tất Cả Điểm</button>
-        </div>
-      </div>
-
-      <div class="point-indicator" id="pointIndicator">
-        📍 Đã đặt: <span id="pointCount">0</span>/3 điểm
-      </div>
-
-      <div class="result-card" id="result">
-        <div class="result-label">Kết Quả Đo Góc</div>
-        <div class="result-value" id="angleValue">0°</div>
-        <div class="result-subtitle">Angle Measurement Result</div>
-      </div>
+    <!-- 🌍 Chuyển ngôn ngữ -->
+    <div style="margin-left:auto;">
+      <select id="languageSwitcher">
+        <option value="vi">VI</option>
+        <option value="en">EN</option>
+      </select>
     </div>
-    <footer style="
-      margin-top: 24px;
-      padding: 16px;
-      text-align: center;
-      color: #fff;
-      font-size: 14px;
-      background: linear-gradient(135deg, #1976d2 0%, #2196f3 100%);
-      width: 100%;
-    ">
-      <p>© 2025 ROMeta — Công cụ hỗ trợ đo góc khớp từ ảnh</p>
-      <p>Phát triển bởi <strong>Nhóm ROMeta</strong></p>
-    </footer>
   </div>
+
+  <!-- 📸 Upload -->
+  <div class="content">
+    <div class="section">
+      <div class="section-title" data-i18n="upload_image">📤 Tải Ảnh Lên</div>
+      <div class="upload-section">
+        <input id="cameraInput" type="file" accept="image/*" capture="environment" style="display:none">
+        <input id="imageInput" type="file" accept="image/*" style="display:none">
+
+        <label for="cameraInput" class="button primary">
+          <span>📷</span>
+          <span data-i18n="take_photo">Chụp Ảnh</span>
+        </label>
+        <label for="imageInput" class="button primary">
+          <span>🖼️</span>
+          <span data-i18n="choose_gallery">Chọn Từ Thư Viện</span>
+        </label>
+        <button id="resetBtn" class="reset-btn" data-i18n="choose_image_different">🔄 Chọn Ảnh Khác</button>
+      </div>
+    </div>
+
+    <!-- 📜 Hướng dẫn -->
+    <div class="instructions">
+      <div class="instructions-title">
+        <span>💡</span>
+        <span data-i18n="instruction_title">Hướng Dẫn Sử Dụng</span>
+      </div>
+      <ul>
+        <li data-i18n="instruction_1"><strong>Chọn ảnh:</strong> Chụp mới hoặc tải ảnh từ thư viện</li>
+        <li data-i18n="instruction_2"><strong>Zoom/Pan:</strong> Lăn chuột để phóng to/thu nhỏ, kéo ảnh để di chuyển</li>
+        <li data-i18n="instruction_3"><strong>Đánh dấu điểm:</strong> Nhấp/chạm để đặt 3 điểm (điểm 2 là đỉnh góc)</li>
+        <li data-i18n="instruction_4"><strong>Điều chỉnh:</strong> Kéo thả các điểm để chỉnh vị trí chính xác</li>
+        <li data-i18n="instruction_5"><strong>Kết quả:</strong> Góc sẽ hiển thị tự động sau khi đặt đủ 3 điểm</li>
+      </ul>
+    </div>
+
+    <!-- 🖼️ Canvas đo -->
+    <div class="canvas-wrapper" id="canvasWrapper">
+      <div class="section-title" data-i18n="measurement_area">🔍 Khu Vực Đo Lường</div>
+      <div class="canvas-container" id="canvasContainer">
+        <canvas id="canvas"></canvas>
+      </div>
+      <div class="zoom-hint" data-i18n="zoom_hint">💡 Lăn chuột để zoom, kéo để di chuyển ảnh</div>
+
+      <div class="toolbar">
+        <button id="undoBtn" data-i18n="undo_point">↶ Xóa Điểm Cuối</button>
+        <button id="clearBtn" data-i18n="clear_points">✕ Xóa Tất Cả Điểm</button>
+      </div>
+    </div>
+
+    <!-- 📍 Số điểm đã đặt -->
+    <div class="point-indicator" id="pointIndicator">
+      📍 <span data-i18n="placed_points">Đã đặt:</span> <span id="pointCount">0</span>/3 <span data-i18n="points">điểm</span>
+    </div>
+
+    <!-- 📐 Kết quả -->
+    <div class="result-card" id="result">
+      <div class="result-label" data-i18n="result_label">Kết Quả Đo Góc</div>
+      <div class="result-value" id="angleValue">0°</div>
+      <div class="result-subtitle" data-i18n="result_subtitle">Angle Measurement Result</div>
+    </div>
+  </div>
+
+  <!-- 🦶 Footer -->
+  <footer style="
+    margin-top: 24px;
+    padding: 16px;
+    text-align: center;
+    color: #fff;
+    font-size: 14px;
+    background: linear-gradient(135deg, #1976d2 0%, #2196f3 100%);
+    width: 100%;
+  ">
+    <p data-i18n="footer">© 2025 ROMeta — Công cụ hỗ trợ đo góc khớp từ ảnh</p>
+    <p data-i18n="footer_dev">Phát triển bởi <strong>Team ROMeta</strong></p>
+  </footer>
+</div>
+
+<!-- 🌍 Script song ngữ -->
+<script>
+const translations = {
+  vi: {
+    title: "ROMeta",
+    subtitle: "Công cụ hỗ trợ đánh giá biên độ vận động khớp dựa trên hình ảnh chụp tư thế khớp",
+    upload_image: "📤 Tải Ảnh Lên",
+    take_photo: "Chụp Ảnh",
+    choose_gallery: "Chọn Từ Thư Viện",
+    choose_image_different: "🔄 Chọn Ảnh Khác",
+    instruction_title: "Hướng Dẫn Sử Dụng",
+    instruction_1: "Chọn ảnh: Chụp mới hoặc tải ảnh từ thư viện",
+    instruction_2: "Zoom/Pan: Lăn chuột để phóng to/thu nhỏ, kéo ảnh để di chuyển",
+    instruction_3: "Đánh dấu điểm: Nhấp/chạm để đặt 3 điểm (điểm 2 là đỉnh góc)",
+    instruction_4: "Điều chỉnh: Kéo thả các điểm để chỉnh vị trí chính xác",
+    instruction_5: "Kết quả: Góc sẽ hiển thị tự động sau khi đặt đủ 3 điểm",
+    measurement_area: "🔍 Khu Vực Đo Lường",
+    zoom_hint: "💡 Lăn chuột để zoom, kéo để di chuyển ảnh",
+    undo_point: "↶ Xóa Điểm Cuối",
+    clear_points: "✕ Xóa Tất Cả Điểm",
+    placed_points: "Đã đặt:",
+    points: "điểm",
+    result_label: "Kết Quả Đo Góc",
+    result_subtitle: "Kết quả đo góc",
+    footer: "© 2025 ROMeta — Công cụ hỗ trợ đo góc khớp từ ảnh",
+    footer_dev: "Phát triển bởi Team ROMeta"
+  },
+  en: {
+    title: "ROMeta",
+    subtitle: "A tool for evaluating joint range of motion based on posture images",
+    upload_image: "📤 Upload Image",
+    take_photo: "Take Photo",
+    choose_gallery: "Choose from Gallery",
+    choose_image_different: "🔄 Choose Another Image",
+    instruction_title: "Instructions",
+    instruction_1: "Select image: Take a new photo or choose from gallery",
+    instruction_2: "Zoom/Pan: Scroll to zoom in/out, drag to move image",
+    instruction_3: "Mark points: Tap/click to place 3 points (point 2 is the vertex)",
+    instruction_4: "Adjust: Drag and drop points to adjust precisely",
+    instruction_5: "Result: The angle will appear automatically after placing 3 points",
+    measurement_area: "🔍 Measurement Area",
+    zoom_hint: "💡 Scroll to zoom, drag to move image",
+    undo_point: "↶ Undo Last Point",
+    clear_points: "✕ Clear All Points",
+    placed_points: "Placed:",
+    points: "points",
+    result_label: "Angle Measurement Result",
+    result_subtitle: "Angle Measurement Result",
+    footer: "© 2025 ROMeta — A tool to measure joint angles from images",
+    footer_dev: "Developed by Team ROMeta"
+  }
+};
+
+const langSelect = document.getElementById('languageSwitcher');
+langSelect.addEventListener('change', (e) => setLanguage(e.target.value));
+
+function setLanguage(lang) {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (translations[lang] && translations[lang][key]) {
+      el.textContent = translations[lang][key];
+    }
+  });
+  localStorage.setItem('selectedLang', lang);
+}
+
+// 👉 Tự động chọn ngôn ngữ lưu trước đó
+const savedLang = localStorage.getItem('selectedLang') || 'vi';
+langSelect.value = savedLang;
+setLanguage(savedLang);
+</script>
+
 
   <script>
   const cameraInput = document.getElementById('cameraInput');
